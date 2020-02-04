@@ -1,6 +1,12 @@
 package com.signify.hue.flutterreactiveble
 
 import com.polidea.rxandroidble2.exceptions.BleException
+import com.signify.hue.flutterreactiveble.ble.BleClient
+import com.signify.hue.flutterreactiveble.ble.CharOperationFailed
+import com.signify.hue.flutterreactiveble.ble.CharOperationResult
+import com.signify.hue.flutterreactiveble.ble.CharOperationSuccessful
+import com.signify.hue.flutterreactiveble.ble.MtuNegotiateFailed
+import com.signify.hue.flutterreactiveble.ble.ReactiveBleClient
 import com.signify.hue.flutterreactiveble.ble.RequestConnectionPriorityFailed
 import com.signify.hue.flutterreactiveble.channelhandlers.BleStatusHandler
 import com.signify.hue.flutterreactiveble.channelhandlers.CharNotificationHandler
@@ -41,7 +47,7 @@ class PluginController {
             "requestConnectionPriority" to this::requestConnectionPriority
     )
 
-    lateinit var bleClient: com.signify.hue.flutterreactiveble.ble.BleClient
+    lateinit var bleClient: BleClient
 
     lateinit var scanchannel: EventChannel
     lateinit var deviceConnectionChannel: EventChannel
@@ -55,7 +61,7 @@ class PluginController {
     private val protoConverter = ProtobufMessageConverter()
 
     internal fun initialize(registrar: PluginRegistry.Registrar) {
-        bleClient = com.signify.hue.flutterreactiveble.ble.ReactiveBleClient(registrar.context())
+        bleClient = ReactiveBleClient(registrar.context())
 
         scanchannel = EventChannel(registrar.messenger(), "flutter_reactive_ble_scan")
         deviceConnectionChannel = EventChannel(registrar.messenger(), "flutter_reactive_ble_connected_device")
@@ -91,6 +97,10 @@ class PluginController {
     }
 
     private fun initializeClient(call: MethodCall, result: Result) {
+        if (bleClient.hasEstablishedConnections) {
+            bleClient.clearAllConnections()
+        }
+
         bleClient.initializeClient()
         result.success(null)
     }
@@ -157,14 +167,14 @@ class PluginController {
                 .subscribe(
                         { charResult ->
                             when (charResult) {
-                                is com.signify.hue.flutterreactiveble.ble.CharOperationSuccessful -> {
+                                is CharOperationSuccessful -> {
                                     val charInfo = protoConverter.convertCharacteristicInfo(
                                             readCharMessage.characteristic,
                                             charResult.value.toByteArray()
                                     )
                                     charNotificationHandler.addSingleReadToStream(charInfo)
                                 }
-                                is com.signify.hue.flutterreactiveble.ble.CharOperationFailed -> {
+                                is CharOperationFailed -> {
                                     Timber.d("read value failed} ${charResult.errorMessage}")
                                     protoConverter.convertCharacteristicError(readCharMessage.characteristic,
                                             "Failed to connect")
@@ -189,21 +199,21 @@ class PluginController {
     }
 
     private fun writeCharacteristicWithResponse(call: MethodCall, result: Result) {
-        executeWriteAndPropagateResultToChannel(call, result, com.signify.hue.flutterreactiveble.ble.BleClient::writeCharacteristicWithResponse)
+        executeWriteAndPropagateResultToChannel(call, result, BleClient::writeCharacteristicWithResponse)
     }
 
     private fun writeCharacteristicWithoutResponse(call: MethodCall, result: Result) {
-        executeWriteAndPropagateResultToChannel(call, result, com.signify.hue.flutterreactiveble.ble.BleClient::writeCharacteristicWithoutResponse)
+        executeWriteAndPropagateResultToChannel(call, result, BleClient::writeCharacteristicWithoutResponse)
     }
 
     private fun executeWriteAndPropagateResultToChannel(
         call: MethodCall,
         result: Result,
-        writeOperation: com.signify.hue.flutterreactiveble.ble.BleClient.(
+        writeOperation: BleClient.(
             deviceId: String,
             characteristic: UUID,
             value: ByteArray
-        ) -> Single<com.signify.hue.flutterreactiveble.ble.CharOperationResult>
+        ) -> Single<CharOperationResult>
     ) {
         val writeCharMessage = pb.WriteCharacteristicRequest.parseFrom(call.arguments as ByteArray)
         bleClient.writeOperation(writeCharMessage.characteristic.deviceId,
@@ -212,12 +222,12 @@ class PluginController {
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe({ operationResult ->
                     when (operationResult) {
-                        is com.signify.hue.flutterreactiveble.ble.CharOperationSuccessful -> {
+                        is CharOperationSuccessful -> {
                             Timber.d("Value succesfully written, $writeOperation")
                             result.success(protoConverter.convertWriteCharacteristicInfo(writeCharMessage,
                                     null).toByteArray())
                         }
-                        is com.signify.hue.flutterreactiveble.ble.CharOperationFailed -> {
+                        is CharOperationFailed -> {
                             Timber.d("Value write failed ${operationResult.errorMessage}")
                             result.success(protoConverter.convertWriteCharacteristicInfo(writeCharMessage,
                                     operationResult.errorMessage).toByteArray())
@@ -254,7 +264,7 @@ class PluginController {
                 .subscribe({ mtuResult ->
                     result.success(protoConverter.convertNegotiateMtuInfo(mtuResult).toByteArray())
                 }, { throwable ->
-                    result.success(protoConverter.convertNegotiateMtuInfo(com.signify.hue.flutterreactiveble.ble.MtuNegotiateFailed(request.deviceId,
+                    result.success(protoConverter.convertNegotiateMtuInfo(MtuNegotiateFailed(request.deviceId,
                             throwable.message ?: "")).toByteArray())
                 }
                 )

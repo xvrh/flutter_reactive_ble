@@ -89,6 +89,7 @@ class ReactiveBleClientTest {
         every { bleDevice.observeConnectionStateChanges() }.returns(Observable.just(RxBleConnection.RxBleConnectionState.CONNECTED))
         every { rxBleClient.getBleDevice(any()) }.returns(bleDevice)
         every { deviceConnector.connection }.returns(subject)
+        every { deviceConnector.disconnectDevice() }.returns(Unit)
 
         subject.onNext(com.signify.hue.flutterreactiveble.ble.EstablishedConnection("test", rxConnection))
     }
@@ -108,6 +109,22 @@ class ReactiveBleClientTest {
             sut.connectToDevice("test", testTimeout)
 
             verify(exactly = 1) { deviceConnector.connection }
+        }
+    }
+
+
+    @DisplayName("Clear connections")
+    @Nested
+    inner class ClearConnectionTest{
+
+        @Test
+        fun `should disconnect all device when executed` () {
+            sut.connectToDevice("test", testTimeout)
+            sut.connectToDevice("test1", testTimeout)
+
+            sut.clearAllConnections()
+
+            verify(exactly = 2) { deviceConnector.disconnectDevice() }
         }
     }
 
