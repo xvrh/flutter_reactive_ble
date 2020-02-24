@@ -223,11 +223,13 @@ class FlutterReactiveBle {
   /// Scan for devices that are advertising a specific service
   /// [scanMode] is used only on Android to enforce a more battery or latency intensive scan strategy
   ///
-  Stream<DiscoveredDevice> scanForDevices(
-      {@required Uuid withService, ScanMode scanMode = ScanMode.balanced}) {
+  Stream<DiscoveredDevice> scanForDevices({
+    List<Uuid> withServices = const <Uuid>[],
+    ScanMode scanMode = ScanMode.balanced,
+  }) {
     final completer = Completer<void>();
     _currentScan =
-        ScanSession(withService: withService, future: completer.future);
+        ScanSession(withServices: withServices, future: completer.future);
 
     final scanRepeater = Repeater(
       onListenEmitFrom: () =>
@@ -253,14 +255,17 @@ class FlutterReactiveBle {
 
     _scanStreamDisposable.set(scanRepeater);
 
-    final args = pb.ScanForDevicesRequest()
-      ..serviceUuid = (pb.Uuid()..data = withService.data)
+    final scanRequest = pb.ScanForDevicesRequest()
       ..scanMode = convertScanModeToArgs(scanMode);
+
+    for (final withService in withServices) {
+      scanRequest.serviceUuids.add((pb.Uuid()..data = withService.data));
+    }
 
     return initialize()
         .then((_) {
           _methodChannel.invokeMethod<void>(
-              "scanForDevices", args.writeToBuffer());
+              "scanForDevices", scanRequest.writeToBuffer());
         })
         .asStream()
         .asyncExpand((Object _) => scanRepeater.stream)
@@ -325,14 +330,14 @@ class FlutterReactiveBle {
 
   Stream<ConnectionStateUpdate> connectToAdvertisingDevice({
     @required String id,
-    @required Uuid withService,
+    @required List<Uuid> withServices,
     @required Duration prescanDuration,
     Map<Uuid, List<Uuid>> servicesWithCharacteristicsToDiscover,
     Duration connectionTimeout,
   }) =>
       _prescanConnector.connectToAdvertisingDevice(
         id: id,
-        withService: withService,
+        withServices: withServices,
         prescanDuration: prescanDuration,
         servicesWithCharacteristicsToDiscover:
             servicesWithCharacteristicsToDiscover,

@@ -71,7 +71,7 @@ class _DeviceListState extends State<DeviceList> {
 
       _clearDeviceList();
       _scanSubscription =
-          _ble.scanForDevices(withService: uuid).listen((device) {
+          _ble.scanForDevices(withServices: [uuid]).listen((device) {
         if (!_devices.any((d) => d.id == device.id)) {
           log("New device found: $device");
 
