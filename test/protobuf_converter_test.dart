@@ -190,36 +190,52 @@ void main() {
     group("ConnectionStateUpdate conversion", () {
       const id = 'id';
       const connectionState = 1;
-      final message = pb.DeviceInfo()
-        ..id = id
-        ..connectionState = connectionState;
 
-      test('Converts id', () {
-        final result = sut.connectionStateUpdateFrom(message);
-        expect(result.deviceId, id);
+      pb.DeviceInfo message;
+
+      group('Message without failure', () {
+        setUp(() {
+          message = pb.DeviceInfo()
+            ..id = id
+            ..connectionState = connectionState;
+        });
+
+        test('Converts id', () {
+          final result = sut.connectionStateUpdateFrom(message);
+          expect(result.deviceId, id);
+        });
+
+        test('Converts status update', () {
+          final result = sut.connectionStateUpdateFrom(message);
+          expect(result.connectionState, DeviceConnectionState.connected);
+        });
       });
 
-      test('Converts status update', () {
-        final result = sut.connectionStateUpdateFrom(message);
-        expect(result.connectionState, DeviceConnectionState.connected);
+      group('Message with failure', () {
+        setUp(() {
+          final failure = pb.GenericFailure()
+            ..code = 0
+            ..message = "failure";
+          message = pb.DeviceInfo()..failure = failure;
+        });
+        test('converts failure', () {
+          final updateResult = sut.connectionStateUpdateFrom(message).failure;
+          expect(updateResult.message, "failure");
+          expect(updateResult.code, ConnectionError.unknown);
+        });
       });
 
-      test('converts failure', () {
-        final failure = pb.GenericFailure()
-          ..code = 0
-          ..message = "failure";
-        final failedUpdate = pb.DeviceInfo()..failure = failure;
+      group('Irregular statuscode ', () {
+        setUp(() {
+          message = pb.DeviceInfo()
+            ..id = id
+            ..connectionState = 100;
+        });
 
-        final updateResult =
-            sut.connectionStateUpdateFrom(failedUpdate).failure;
-        expect(updateResult.message, "failure");
-        expect(updateResult.code, ConnectionError.unknown);
-      });
-
-      test('converts unknown code throws', () {
-        final unknownCodeMessage = message..connectionState = 100;
-        expect(() => sut.connectionStateUpdateFrom(unknownCodeMessage),
-            throwsA(anything));
+        test('converts unknown code throws', () {
+          expect(
+              () => sut.connectionStateUpdateFrom(message), throwsA(anything));
+        });
       });
     });
 
@@ -228,10 +244,9 @@ void main() {
         final result = sut.clearGattCacheResultFrom(pb.ClearGattCacheInfo());
 
         expect(
-            result.iif(
-                success: (_) => "success",
-                failure: (_) => throw AssertionError("Not expected to fail")),
-            "success");
+            result,
+            const Result<Unit, GenericFailure<ClearGattCacheError>>.success(
+                Unit()));
       });
 
       test('Fails', () {
