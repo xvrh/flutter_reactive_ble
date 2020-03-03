@@ -54,10 +54,10 @@ open class ReactiveBleClient(private val context: Context) : BleClient {
                 ScanSettings.Builder()
                         .setScanMode(scanMode.toScanSettings())
                         .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
-                        .build(),
+                        .build()/*,
                 ScanFilter.Builder()
                         .setServiceUuid(service)
-                        .build()
+                        .build()*/
         )
                 .map { result ->
                     ScanInfo(result.bleDevice.macAddress, result.bleDevice.name

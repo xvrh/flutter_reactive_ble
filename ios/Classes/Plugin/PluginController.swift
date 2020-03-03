@@ -165,7 +165,7 @@ final class PluginController {
 
         self.scan = scan.with(sink: sink)
 
-        central.scanForDevices(with: [scan.parameters.service])
+        central.scanForDevices(with: [/*scan.parameters.service*/])
 
         return nil
     }
